@@ -1,0 +1,54 @@
+# Skill mapping — stage to skill routing
+#
+# Each top-level key is a stage. A stage may have:
+#   - sub-keys (e.g., "brownfield" / "greenfield" / "backend") for sub-modes
+#   - a "primary" key directly if no sub-mode applies
+#   - "supplementary" skills with conditions
+#
+# Conditions are simple expressions evaluated against ticket + workspace state.
+# See docs/SKILL_ORCHESTRATION.md for the full grammar.
+#
+# Teams that want to customize:
+#   1. Copy this file to their own location
+#   2. Set SKILL_MAPPING_PATH in .env to point at the copy
+#   3. Edit freely
+
+design:
+  brownfield:
+    primary: mcp-design-brownfield
+    supplementary:
+      - skill: mcp-implement-db
+        condition: "has_label('database')"
+  greenfield:
+    primary: mcp-design-greenfield
+  revision:
+    primary: mcp-design-revise
+
+implement:
+  backend:
+    primary: mcp-implement-backend
+    supplementary:
+      - skill: mcp-implement-db
+        condition: "has_label('database')"
+  frontend:
+    primary: mcp-implement-frontend
+  db:
+    primary: mcp-implement-db
+
+self_review:
+  primary: mcp-self-review
+
+test:
+  write:
+    primary: mcp-test-write
+  run:
+    primary: mcp-test-run
+
+deploy:
+  primary: mcp-deploy
+
+post_deploy:
+  primary: mcp-doc-update
+
+bug_recovery:
+  primary: mcp-investigate

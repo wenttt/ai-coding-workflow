@@ -1,0 +1,76 @@
+name: PR conventions check
+
+# Enforces the PR title / body / label conventions defined in
+# docs/SKILL_ORCHESTRATION.md. This is the only mandatory CI check
+# for the AI Coding Workflow pipeline.
+#
+# What it checks:
+#   - Title matches `[JIRA-KEY] {Stage}: {description}`
+#   - Body contains `Jira: <url>` line
+#   - At least one `stage:*` label is present
+#   - On code PRs: body references the design PR (`Linked Design PR: #...`)
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, labeled, unlabeled]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -e
+          # Title pattern: [PROJ-123] {Stage}: {description}
+          # Stages: Design | Impl | Test | Docs | Hotfix
+          if ! [[ "$PR_TITLE" =~ ^\[[A-Z]+-[0-9]+\][[:space:]](Design|Impl|Test|Docs|Hotfix):[[:space:]].+ ]]; then
+            echo "::error title=Invalid PR title::Title must match '[JIRA-KEY] {Stage}: {description}'"
+            echo "Got: $PR_TITLE"
+            echo "Stages: Design, Impl, Test, Docs, Hotfix"
+            exit 1
+          fi
+          echo "Title OK: $PR_TITLE"
+
+      - name: Validate body — Jira reference
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -e
+          if ! echo "$PR_BODY" | grep -qE '^Jira:[[:space:]]+https?://'; then
+            echo "::error title=Missing Jira link::PR body must include a 'Jira: <url>' line"
+            exit 1
+          fi
+          echo "Jira link OK"
+
+      - name: Validate stage label
+        env:
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels) }}
+        run: |
+          set -e
+          # Look for any label with name starting "stage:"
+          if echo "$LABELS_JSON" | grep -qE '"name":[[:space:]]*"stage:[a-z]+"'; then
+            echo "Stage label OK"
+          else
+            echo "::error title=Missing stage label::PR must have a label like 'stage:design', 'stage:impl', 'stage:test', 'stage:docs'"
+            exit 1
+          fi
+
+      - name: Validate code PR references design PR
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels) }}
+        run: |
+          set -e
+          # Only enforce on impl PRs (stage:impl label)
+          if echo "$LABELS_JSON" | grep -qE '"name":[[:space:]]*"stage:impl"'; then
+            if ! echo "$PR_BODY" | grep -qE 'Linked Design PR:[[:space:]]+#[0-9]+'; then
+              echo "::error title=Missing design PR reference::Code PRs must include 'Linked Design PR: #N' in body"
+              exit 1
+            fi
+            echo "Design PR link OK"
+          else
+            echo "Skipped (not a stage:impl PR)"
+          fi
