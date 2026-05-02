@@ -1,0 +1,54 @@
+# Project mapping: Jira project key -> GitHub repo + local workspace path
+#
+# This file is OPTIONAL. If absent, the MCP server uses the GITHUB_DEFAULT_OWNER /
+# GITHUB_DEFAULT_REPO / WORKSPACE_PATH env vars as the single project.
+#
+# When present, multi-project routing is enabled:
+# - list_my_tickets() returns tickets across ALL Jira projects, with each ticket
+#   tagged with which project + which repo + whether the current workspace matches
+# - lookup_project_for_ticket(jira_key) maps "PROJ-123" -> { github, workspace, ... }
+# - prompts.pipeline checks if the ticket's project matches the current workspace
+#   and warns the user to switch VS Code window if not
+#
+# To use:
+# 1. Copy this file: cp project_mapping.example.yaml project_mapping.yaml
+# 2. Edit project_mapping.yaml with your team's projects
+# 3. Set PROJECT_MAPPING_PATH env var to the file's path (in .env or mcp.json env)
+# 4. project_mapping.yaml itself can be committed to the team repo (no secrets)
+#    OR kept per-developer if mappings differ. Your call.
+
+projects:
+  # Each key is the Jira project key (the part before the dash in PROJ-123)
+  KAN:
+    github_owner: wenttt
+    github_repo: Code-Reviewer-Assistant
+    workspace_path: /Users/Administrator/PycharmProjects/Code-Reviewer-Assistant
+    # Optional fields:
+    description: "Code review assistant tooling"
+    default_base_branch: main
+    # If this project has a different reviewer team, list them here for hints
+    default_reviewers: []
+
+  PROJ:
+    github_owner: myorg
+    github_repo: proj-frontend
+    workspace_path: /Users/Administrator/PycharmProjects/proj-frontend
+    description: "Customer-facing frontend"
+    default_base_branch: main
+
+  INFRA:
+    github_owner: myorg
+    github_repo: infrastructure
+    workspace_path: /Users/Administrator/PycharmProjects/infrastructure
+    description: "Kubernetes + IaC"
+    default_base_branch: main
+    # Some projects might have stricter rules
+    default_reviewers: ["sre-team-lead"]
+
+# Default fallback if a Jira project key isn't in the mapping above.
+# Useful when most tickets fall under one repo and you only want to
+# explicitly map exceptions.
+default:
+  github_owner: wenttt
+  github_repo: Code-Reviewer-Assistant
+  workspace_path: /Users/Administrator/PycharmProjects/Code-Reviewer-Assistant

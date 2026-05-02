@@ -110,6 +110,50 @@ The MCP server registers these prompts; they show up in the Copilot Chat slash-c
 - `/ai-coding-workflow:investigate_for jira_key=<KEY>` — root-cause for stuck tickets
 - `/ai-coding-workflow:revise_design jira_key=<KEY>` — Stage 1 revision
 
+## Cross-project tickets (a feature that spans multiple repos)
+
+If `affected_projects_for_ticket(jira_key, ticket_labels=..., ticket_components=...)` returns `is_cross_project=True`:
+
+### Stage 1 (cross-project design)
+
+1. Use the `cross_project.md` template (instead of user_story.md).
+2. The design Issue is opened in the **primary** project's repo.
+3. The Issue body MUST include the **Contract** section:
+   - API endpoints with full schemas (OpenAPI / Protobuf / GraphQL)
+   - Error codes
+   - Versioning rules
+4. The frontmatter has `is_cross_project: true`, `affected_projects: [...]`, `implementation_order: [...]` (default: backend first, frontend second), `contract: { type, source_of_truth_path, api_endpoints }`.
+5. Before completing Stage 1, verify the contract is implementable from BOTH sides — if backend can't expose it or frontend can't consume it, revise.
+
+### Stage 2 (cross-project implementation)
+
+For each project in `implementation_order`:
+
+1. **Switch workspace** if needed: `check_workspace_matches(jira_key)` and tell the user to switch VS Code window if the current workspace isn't the next-project's workspace.
+2. In the right workspace:
+   - Read the design Issue body (the contract is the source of truth).
+   - Open `feat/{KEY}-{role}` branch (e.g., `feat/PROJ-100-backend`, `feat/PROJ-100-frontend`).
+   - Generate types/clients from the contract (run codegen if the repo has it; otherwise hand-write but cross-reference).
+   - Implement strictly to contract.
+   - Stage 3 self-review **explicitly checks contract compliance**.
+   - Stage 4 includes contract tests (request/response schema validation).
+   - Open PR with `Closes #<design-issue>` AND `Related to <other-repo>#<other-pr>` once the other side's PR exists.
+3. Operation logs include `repo_role: "backend"` or `"frontend"` so cross-cutting analysis can find the per-role logs later.
+
+### Cross-project Stage 4.5: integration test
+
+After all per-repo PRs are merged:
+
+1. Wait for both repos' deploys to staging.
+2. Run an E2E test (frontend hits backend on staging) — typically a separate test suite the team has, OR a manual verification.
+3. Only after E2E passes do we proceed to Stage 5 (production deploy).
+
+### Critical for cross-project
+
+- **Contract is non-negotiable**. If the implementer wants to deviate, the design Issue body must be revised (Stage 1 revision) FIRST, then both repos update.
+- **Implementation order matters**. Don't run frontend Stage 2 before backend Stage 2 unless the design explicitly says so.
+- **Each repo's PR references the other**. Reviewers need to see the cross-cutting context.
+
 ## Critical rules (apply to every stage)
 
 1. **State is real** — don't assume. Always call `get_workflow_state` first.
@@ -118,3 +162,4 @@ The MCP server registers these prompts; they show up in the Copilot Chat slash-c
 4. **3-strike retries** — within a single invocation, if a stage's `get_retry_count >= max_retries`, call `escalate(...)` instead of retrying.
 5. **Stage 1 is Issue-only** — never use git tools in design stage.
 6. **Skills are the source of truth** — when a flow has a corresponding `.claude/skills/mcp-*/SKILL.md`, read it and follow its phases. Don't improvise.
+7. **Cross-project = contract-first** — never let frontend and backend evolve independently. The design Issue's Contract section is law.

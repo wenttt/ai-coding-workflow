@@ -124,18 +124,50 @@ Begin now with Step 0.
 
     @mcp.prompt(
         name="my_tickets",
-        description="List Jira tickets assigned to me, with their current pipeline stage.",
+        description="List Jira tickets assigned to me across all projects, grouped by project, with current pipeline stage and workspace routing info.",
     )
     def my_tickets() -> str:
         return """\
-Show me my open Jira tickets and their pipeline status.
+Show me my open Jira tickets across ALL projects, grouped by project.
 
-1. Call `list_my_tickets()` (returns tickets assigned to the configured user).
-2. For each ticket, call `get_workflow_state(jira_key=<key>)` to see what stage it's in.
-3. Present a table with: Jira key | summary | current_stage | next_action | retry_count.
-4. Highlight any escalated tickets in red.
+1. Call `list_my_tickets(include_project_routing=True)` — returns tickets across all
+   projects with routing info per ticket (which repo, which workspace, whether current
+   workspace matches).
+
+2. For each ticket, call `get_workflow_state(jira_key=<key>)` to see its pipeline stage.
+
+3. Group tickets by `project_key`. Within each group, present a table:
+   Jira key | summary | ticket_type | current_stage | next_action | retry | workspace match
+
+4. For tickets where `current_workspace_match=False`, show clear hint:
+   "WARNING This ticket maps to workspace `<expected>`. To work on it, switch to that
+    VS Code window first."
+
+5. Highlight any escalated tickets prominently.
+
+6. At the end, show a summary count by project AND a count of cross-workspace tickets.
 
 Don't take any action — just report.
+"""
+
+    @mcp.prompt(
+        name="check_routing",
+        description="Check whether a Jira ticket maps to the current workspace, and report cross-project info.",
+    )
+    def check_routing(jira_key: str) -> str:
+        return f"""\
+Diagnose routing for {jira_key}:
+
+1. Call `read_jira_ticket("{jira_key}")` to get labels + components.
+2. Call `lookup_project_for_ticket("{jira_key}")` for primary project.
+3. Call `affected_projects_for_ticket("{jira_key}", ticket_labels=<labels>, ticket_components=<components>)`.
+4. Call `check_workspace_matches("{jira_key}")`.
+
+Report:
+- Primary project routing (repo + workspace)
+- If cross-project: list ALL affected projects with their repos and workspaces
+- Whether current workspace matches
+- Suggested action: proceed here, or switch to which workspace, or run multi-repo plan
 """
 
     @mcp.prompt(

@@ -36,7 +36,17 @@ def build_server(config: Config) -> FastMCP:
 
     # Lazy imports — keeps startup fast and avoids import cycles
     from . import prompts
-    from .tools import escalation, github, git, jira, repo, skill_router, tests, workflow_state
+    from .tools import (
+        escalation,
+        github,
+        git,
+        jira,
+        project_routing,
+        repo,
+        skill_router,
+        tests,
+        workflow_state,
+    )
 
     jira.register(mcp, config)
     github.register(mcp, config)
@@ -46,6 +56,7 @@ def build_server(config: Config) -> FastMCP:
     workflow_state.register(mcp, config)
     skill_router.register(mcp, config)
     escalation.register(mcp, config)
+    project_routing.register(mcp, config)
     prompts.register(mcp, config)
 
     return mcp

@@ -34,6 +34,16 @@ Jira ticket
 
 Every step writes a structured operation log to `docs/operations/{JIRA-KEY}/`. After 3 failed retries on any stage, the pipeline escalates to a human.
 
+## Multi-project + cross-project support
+
+Real teams work across multiple Jira projects, each backed by a different GitHub repo. This server handles both:
+
+- **Multiple projects**: A developer's `list_my_tickets()` returns tickets across ALL Jira projects. Each ticket is tagged with which repo + workspace it belongs to. The pipeline checks workspace match and tells you to switch VS Code window if needed.
+
+- **Cross-project tickets** (a single feature spanning frontend + backend): handled with **contract-first design**. The `cross_project.md` template requires an explicit Contract section (OpenAPI / Protobuf / GraphQL) — both sides implement against this contract, with implementation order (typically backend first), per-repo Stage 2 runs, and a final Stage 4.5 cross-repo integration test.
+
+Configure via `PROJECT_MAPPING_PATH` env var pointing at `project_mapping.yaml`. See `src/ai_coding_workflow/resources/project_mapping.example.yaml`.
+
 ## Design principles (non-negotiable)
 
 1. **Pull-based, not webhook-driven.** Agent reads GitHub state when invoked, not the other way around.

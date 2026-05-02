@@ -34,6 +34,9 @@ class Config:
     # Skill mapping override (optional path to a forked skill_mapping.yaml)
     skill_mapping_path: Path | None
 
+    # Project mapping (optional; enables multi-project routing if present)
+    project_mapping_path: Path | None
+
     # Logging
     log_level: str
 
@@ -53,6 +56,11 @@ class Config:
     @property
     def effective_skill_mapping_path(self) -> Path:
         return self.skill_mapping_path or self.default_skill_mapping_path
+
+    @property
+    def has_project_mapping(self) -> bool:
+        """Whether multi-project routing is configured."""
+        return self.project_mapping_path is not None and self.project_mapping_path.exists()
 
 
 def _required(name: str) -> str:
@@ -77,6 +85,7 @@ def load_config() -> Config:
         raise RuntimeError(f"WORKSPACE_PATH is not a directory: {workspace}")
 
     skill_mapping = _optional("SKILL_MAPPING_PATH")
+    project_mapping = _optional("PROJECT_MAPPING_PATH")
 
     return Config(
         jira_base_url=_required("JIRA_BASE_URL").rstrip("/"),
@@ -90,5 +99,6 @@ def load_config() -> Config:
         design_doc_dir=_optional("DESIGN_DOC_DIR", "docs/designs"),
         max_retries_per_stage=int(_optional("MAX_RETRIES_PER_STAGE", "3")),
         skill_mapping_path=Path(skill_mapping).expanduser().resolve() if skill_mapping else None,
+        project_mapping_path=Path(project_mapping).expanduser().resolve() if project_mapping else None,
         log_level=_optional("LOG_LEVEL", "INFO"),
     )

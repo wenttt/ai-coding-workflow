@@ -42,8 +42,16 @@ def _summarize_issue(issue: dict[str, Any]) -> dict[str, Any]:
     }
     canonical_type = type_map.get(issuetype, "task")
 
+    key = issue.get("key", "")
+    project_key = key.split("-", 1)[0].upper() if "-" in key else key.upper()
+
+    parent = fields.get("parent") or {}
+    parent_key = parent.get("key") if parent else None
+
     return {
-        "key": issue.get("key"),
+        "key": key,
+        "project_key": project_key,
+        "parent_key": parent_key,
         "summary": fields.get("summary", ""),
         "description": fields.get("description") or "",
         "status": (fields.get("status") or {}).get("name", ""),
@@ -60,7 +68,7 @@ def _summarize_issue(issue: dict[str, Any]) -> dict[str, Any]:
             link.get("outwardIssue", link.get("inwardIssue", {})).get("key")
             for link in (fields.get("issuelinks") or [])
         ],
-        "url": f"{issue.get('self', '').split('/rest/')[0]}/browse/{issue.get('key')}"
+        "url": f"{issue.get('self', '').split('/rest/')[0]}/browse/{key}"
         if issue.get("self") else None,
     }
 
@@ -86,13 +94,22 @@ def register(mcp: FastMCP, config: Config) -> None:
         assignee_email: str | None = None,
         status: str | None = "In Progress",
         limit: int = 20,
+        include_project_routing: bool = True,
     ) -> list[dict[str, Any]]:
-        """List Jira tickets assigned to a user.
+        """List Jira tickets assigned to a user, across all projects.
 
         Args:
             assignee_email: defaults to the configured JIRA_EMAIL.
             status: Jira status filter; pass None for any status.
             limit: max tickets to return.
+            include_project_routing: if True (default) and project_mapping is
+                configured, each ticket's response includes routing info
+                (target repo, target workspace, whether current workspace matches).
+
+        Returns each ticket with: key, project_key, parent_key, summary,
+        ticket_type, status, labels, components, assignee, url, plus when
+        routing is enabled: project_routing dict with repo, workspace,
+        current_workspace_match, source.
         """
         assignee = assignee_email or config.jira_email
         client = _client(config)
@@ -102,7 +119,29 @@ def register(mcp: FastMCP, config: Config) -> None:
         jql_parts.append("ORDER BY updated DESC")
         jql = " AND ".join(jql_parts[:-1]) + " " + jql_parts[-1]
         result = client.jql(jql, limit=limit)
-        return [_summarize_issue(i) for i in result.get("issues", [])]
+
+        tickets = [_summarize_issue(i) for i in result.get("issues", [])]
+
+        if include_project_routing:
+            # Lazy import to avoid cycle
+            from .project_routing import _project_key_from_jira_key, _resolve
+            from pathlib import Path
+
+            current_ws = config.workspace_path.resolve()
+            for t in tickets:
+                project_key = t.get("project_key") or _project_key_from_jira_key(t["key"])
+                routing = _resolve(config, project_key)
+                expected_ws = Path(routing["workspace_path"]).resolve()
+                t["project_routing"] = {
+                    "project_key": project_key,
+                    "github_owner": routing["github_owner"],
+                    "github_repo": routing["github_repo"],
+                    "workspace_path": str(expected_ws),
+                    "current_workspace_match": expected_ws == current_ws,
+                    "source": routing["source"],
+                }
+
+        return tickets
 
     @mcp.tool()
     def update_jira_status(jira_key: str, target_status: str) -> dict[str, Any]:

@@ -73,10 +73,14 @@ Read the top 3-5 returned files via `read_repo_file` to understand:
 
 If you find no relevant modules, say so explicitly in the operation log's "What I could not do" — do not make up modules.
 
-### Phase 4: Pick the template
+### Phase 4: Detect cross-project + pick the template
 
-Based on `ticket.ticket_type`:
-- `user_story` -> `src/ai_coding_workflow/resources/templates/brownfield/user_story.md`
+First, call `affected_projects_for_ticket(jira_key, ticket_labels=ticket["labels"], ticket_components=ticket["components"])`.
+
+**If `is_cross_project=True`**: this ticket touches multiple repos (e.g., frontend + backend). Use the **cross-project template**: `templates/brownfield/cross_project.md`. This template enforces the **Contract section** — API endpoints, schemas, error codes — that both sides will implement. Without this, frontend and backend will diverge and integration will fail.
+
+**If single-project**, pick by `ticket.ticket_type`:
+- `user_story` -> `templates/brownfield/user_story.md`
 - `task` -> `templates/brownfield/task.md`
 - `sub_task` -> `templates/brownfield/sub_task.md`
 - `epic` -> `templates/brownfield/epic.md`
