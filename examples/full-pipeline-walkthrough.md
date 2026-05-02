@@ -43,29 +43,29 @@ User → IDE Copilot:
 
 5. `prepare_skill_input("PROJ-123", "design", "mcp-design-brownfield", ...)` →
    ```
-   { jira_key, ticket, mode, design_doc_path, prior_operation_logs (empty), ... }
+   { jira_key, ticket, mode, prior_operation_logs (empty), ... }
    ```
 
-6. **Invoke skill `mcp-design-brownfield`** → reads ticket + finds modules + writes design doc + opens PR #45
+6. **Invoke skill `mcp-design-brownfield`** → reads ticket + finds modules + composes design markdown + calls `create_design_issue` → Issue #45 opens
 
 7. `write_operation_log(...)` → `docs/operations/PROJ-123/01-design-v1.md`
 
 **Agent reports to user:**
 
-> Design PR #45 opened: https://github.com/.../pull/45
+> Design Issue #45 opened: https://github.com/.../issues/45
 >
 > Summary:
 > - Touches src/auth/, src/api/login.py
 > - Risk: medium
 > - 5 acceptance criteria mapped
 >
-> Reviewers please leave comments on the markdown file. Call me again with `Continue PROJ-123` after review.
+> Reviewers please comment on the Issue. Close it with `completed` reason when approved. Call me again with `Continue PROJ-123` after review.
 
 ---
 
 ## Invocation 2 — User checks state after review
 
-Reviewer @boss left CHANGES_REQUESTED on PR #45 with two comments.
+Reviewer @boss left two comments on Issue #45 asking for changes.
 
 ```
 User: "Continue PROJ-123"
@@ -75,32 +75,34 @@ User: "Continue PROJ-123"
 
 1. `get_workflow_state("PROJ-123")` →
    ```
-   {"current_stage": "design", "stage_status": "rejected", "retry_count": 0, "next_action": "revise_design", ...}
+   {"current_stage": "design", "stage_status": "changes_requested", "retry_count": 0, "next_action": "revise_design", ...}
    ```
 
-2. `find_pr_by_branch("design/PROJ-123-...")` → PR #45 with `review_decision: "changes_requested"`
+2. `find_design_issue_for_jira("PROJ-123")` → Issue #45 (state: open)
 
-3. `list_pr_review_comments(45)` → review comments
+3. `list_issue_comments(45)` → reviewer comments
 
 4. `get_skill_chain_for_stage(stage="design", sub_mode="revision", ...)` → `[{"skill": "mcp-design-revise", "role": "primary"}]`
 
-5. **Invoke `mcp-design-revise`** → reads comments, applies edits, pushes new commit, replies on PR
+5. **Invoke `mcp-design-revise`** → reads comments, edits Issue body, posts a summary comment
 
 6. `write_operation_log(...)` → `docs/operations/PROJ-123/02-design-revision-v1.md`
 
 **Agent reports:**
 
-> Revision 1/3 pushed to PR #45.
+> Revision 1/3 pushed to Issue #45.
 >
 > Addressed:
 > - @boss's tech-stack concern → switched to existing OAuth lib
 > - @boss's risk concern → added rollback plan section
 >
-> Wait for re-review.
+> Wait for re-review. If reviewers approve, they should close the Issue with `completed` reason.
 
 ---
 
 ## Invocation 3 — Approved!
+
+User reviewed the revised Issue body, was satisfied, and **closed Issue #45 with reason `completed`** in GitHub.
 
 ```
 User: "Continue PROJ-123"
@@ -108,13 +110,11 @@ User: "Continue PROJ-123"
 
 **Agent's actions:**
 
-1. `get_workflow_state(...)` shows last stage `design-revision` completed, but PR is now **approved**.
+1. `find_design_issue_for_jira(...)` → Issue #45 (`state=closed`, `state_reason=completed`).
 
-2. The Agent's logic: "design approved means design phase is done; move to implement". Proceed.
+2. `get_workflow_state(...)` shows latest design-revision completed, and Issue is now closed-completed → design approved → move to Stage 2.
 
-3. (User merges the design PR. Or, the Agent's design-PR-merged step does it.)
-
-4. `read_jira_ticket(...)` re-fetches; ticket labels include `backend` (and not `frontend`).
+3. `read_jira_ticket(...)` re-fetches; ticket labels include `backend` (and not `frontend`).
 
 5. `get_skill_chain_for_stage(stage="implement", sub_mode="backend", ticket=...)` →
    ```
@@ -300,14 +300,14 @@ User: "Verify deploy for PROJ-123"
 
 ```
 docs/operations/PROJ-123/
-├── 01-design-v1.md
-├── 02-design-revision-v1.md
-├── 03-implement-v1.md
+├── 01-design-v1.md          ← Issue #45 opened
+├── 02-design-revision-v1.md ← Issue #45 body updated + summary comment
+├── 03-implement-v1.md       ← After Issue #45 closed (completed), branch + code
 ├── 04-self-review-v1.md
 ├── 05-test-write-v1.md
 ├── 06-test-run-v1.md
 ├── 06-test-run-v2.md       ← retry that fixed the bug
-├── 07-pr-review-fix-v1.md  ← (if PR was rejected once)
+├── 07-pr-review-fix-v1.md  ← (if code PR was rejected once)
 ├── 08-deploy-v1.md
 └── 09-doc-update-v1.md
 ```

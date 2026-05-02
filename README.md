@@ -12,16 +12,16 @@ Given a Jira ticket, the orchestrating Agent (your IDE Copilot) walks the full d
 Jira ticket
     ↓
 [Stage 1: Design]            mcp-design-brownfield / mcp-design-greenfield
-    ↓
-[Human review on GitHub PR]
-    ↓ approved (or rejected → mcp-design-revise → loop, max 3)
+    ↓ (publishes a GitHub Issue with the design markdown)
+[Human review on GitHub Issue]
+    ↓ Issue closed `completed` (or comments → mcp-design-revise → loop, max 3)
 [Stage 2: Implementation]    mcp-implement-{backend,frontend,db}
-    ↓
+    ↓ (creates feat/{KEY}-* branch with code)
 [Stage 3: Self review]       mcp-self-review
     ↓
 [Stage 4: Test]              mcp-test-write → mcp-test-run (max 3 retries)
     ↓
-[Code PR opened]
+[Code PR opened]             (PR body has `Closes #<design-issue>`)
     ↓ human review (or rejected → loop, max 3)
 [Stage 5: Deploy]            mcp-deploy
     ↓
@@ -29,6 +29,8 @@ Jira ticket
     ↓
 [Jira closed]
 ```
+
+**The split is deliberate**: design discussion lives in **Issues** (lightweight, no branches), code lives in **PRs** (with branch isolation for parallel team development).
 
 Every step writes a structured operation log to `docs/operations/{JIRA-KEY}/`. After 3 failed retries on any stage, the pipeline escalates to a human.
 

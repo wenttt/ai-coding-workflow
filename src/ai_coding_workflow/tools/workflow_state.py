@@ -24,14 +24,15 @@ def register(mcp: FastMCP, config: Config) -> None:
     @mcp.tool()
     def get_workflow_state(
         jira_key: str,
-        design_pr_number: int | None = None,
+        design_issue_number: int | None = None,
         code_pr_number: int | None = None,
     ) -> dict[str, Any]:
         """Infer the current pipeline stage and next action for a Jira ticket.
 
         Args:
             jira_key: e.g., "PROJ-123"
-            design_pr_number: optional, if you already know the design PR number
+            design_issue_number: optional. If known, the Agent can pass it in.
+                Otherwise, find_design_issue_for_jira(jira_key) discovers it.
             code_pr_number: optional, if you already know the code PR number
 
         Returns:
@@ -39,12 +40,19 @@ def register(mcp: FastMCP, config: Config) -> None:
             is_escalated, next_action, recommended_skill, blockers,
             relevant_paths.
 
-        next_action is a free-form string the Agent uses to decide what to do.
-        Common values:
-          - "create_design"
-          - "wait_for_review"
-          - "revise_design"
-          - "trigger_implementation"
+        Stage 1 (design) is driven by a GitHub Issue:
+          - Issue open -> awaiting review
+          - Issue has new comments since last revision -> changes requested
+          - Issue closed with state_reason=completed -> approved (Stage 2 next)
+          - Issue closed with state_reason=not_planned -> rejected outright
+
+        Stage 2+ (implementation) is driven by branch + PR.
+
+        next_action common values:
+          - "create_design"        (no Issue exists yet)
+          - "wait_for_review"      (Issue is open, no new feedback to address)
+          - "revise_design"        (Issue has new comments)
+          - "trigger_implementation"  (Issue closed/completed)
           - "self_review"
           - "write_tests"
           - "run_tests"
@@ -123,7 +131,7 @@ def register(mcp: FastMCP, config: Config) -> None:
         retry_status = retry_status_per_stage.get(latest_stage)
 
         next_action, next_stage, recommended_key, blockers = _infer_next(
-            latest_stage, latest_status, retry_status, design_pr_number, code_pr_number
+            latest_stage, latest_status, retry_status, design_issue_number, code_pr_number
         )
 
         return {
@@ -147,19 +155,18 @@ def _infer_next(
     latest_stage: str,
     latest_status: str,
     retry_status: Any,
-    design_pr_number: int | None,
+    design_issue_number: int | None,
     code_pr_number: int | None,
 ) -> tuple[str, str, str | None, list[str]]:
     """Return (next_action, next_stage, recommended_skill_key, blockers).
 
     Decision rules — kept simple and readable. Refine with real usage data.
     """
-    # Design stage outcomes
+    # Design stage outcomes (Issue-driven)
     if latest_stage == "design":
         if latest_status == "completed":
-            # Design written; waiting for review on the PR
             return ("wait_for_review", "design", None,
-                    ["Awaiting review on design PR"])
+                    ["Awaiting review on design Issue"])
         if latest_status == "failed":
             return ("revise_design", "design-revision", "design.revision",
                     [])
@@ -167,11 +174,11 @@ def _infer_next(
     if latest_stage == "design-revision":
         if latest_status == "completed":
             return ("wait_for_review", "design-revision", None,
-                    ["Awaiting review on revised design PR"])
+                    ["Awaiting re-review on design Issue"])
 
-    # If design appears done (regardless of which sub-stage), move to implement
-    # In practice, the user signals approval by invoking the next stage explicitly
-    # or design PR review_decision goes to "approved" — Agent reads it.
+    # Design approved (Issue closed/completed) — Agent should signal this
+    # by invoking the implement stage directly. The user closes the Issue
+    # in GitHub and re-summons the Agent.
 
     if latest_stage == "implement":
         if latest_status == "completed":

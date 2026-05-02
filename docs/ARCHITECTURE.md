@@ -103,16 +103,38 @@ The MCP server is *deliberately* dumb about LLM work. It does plumbing, not thin
 
 ## State model
 
-There is **no central state database**. State lives in three places, and we read from the source of truth on every invocation:
+There is **no central state database**. State lives in four places, and we read from the source of truth on every invocation:
 
 | State | Source of truth | Read via |
 |---|---|---|
 | Ticket status (open / in design / in dev / merged / done) | Jira | `read_jira_ticket` MCP tool |
-| Design or code review state (open / changes-requested / approved / merged) | GitHub | `get_pr_state` MCP tool |
+| **Stage 1 (design) review state** (open / closed-completed / closed-not-planned, comments) | **GitHub Issue** | `get_issue_state`, `list_issue_comments` MCP tools |
+| Stage 2+ (code) review state (open / changes-requested / approved / merged) | GitHub PR | `get_pr_state`, `list_pr_review_comments` MCP tools |
 | Operation history (what's been tried, what failed) | `docs/operations/{KEY}/` in workspace | `read_operation_logs` MCP tool |
 | Retry count for current stage | Count of operation log files | `get_retry_count` MCP tool |
 
-Inferring "current stage" combines all four. See `docs/SKILL_ORCHESTRATION.md` for the decision logic.
+Inferring "current stage" combines these. See `docs/SKILL_ORCHESTRATION.md` for the decision logic.
+
+## Why Issues for design, PRs for code
+
+This is the cleanest split a team-scale workflow can have:
+
+**Design phase = GitHub Issue:**
+- Discussion is the artifact, not code
+- Issue body holds the design markdown (with YAML frontmatter)
+- Issue comments = reviewer feedback
+- Closing with `completed` = approved -> triggers Stage 2
+- Closing with `not_planned` = rejected -> escalate to humans
+- **No branch operations needed** — no risk of polluting main with rejected designs, no branch protection issues, no merge conflicts on design discussion
+- Multiple designs can be in flight in parallel without git contention
+
+**Implementation phase = branch + PR:**
+- Code requires isolation — multiple developers working in parallel need their own branches
+- PR diff view is the right surface for code review
+- PR auto-closes the design Issue via `Closes #N` in the PR body
+- Branch naming: `feat/{JIRA-KEY}-{slug}` keeps it unique per ticket across the team
+
+This split means each developer's MCP server, configured with their own credentials, naturally only sees their own assigned tickets via `list_my_tickets()`. They each create their own branches in Stage 2 without colliding with teammates.
 
 ## Brownfield vs Greenfield
 

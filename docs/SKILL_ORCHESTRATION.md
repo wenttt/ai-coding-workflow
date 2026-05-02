@@ -40,15 +40,18 @@ Each invocation = one trip through this loop.
 
 ## Stage detection
 
-`get_workflow_state` infers the current stage from the source-of-truth signals:
+`get_workflow_state` infers the current stage from the source-of-truth signals.
+
+Stage 1 (design) is **Issue-driven**. Stage 2+ is **PR-driven**.
 
 | Signal | Implies |
 |---|---|
-| No design PR exists | Stage 1 (design) — `pending` |
-| Design PR exists, status open | Stage 1 — `awaiting review` |
-| Design PR has CHANGES_REQUESTED | Stage 1 — `rejected` (next action: revise) |
-| Design PR merged, no impl issue | Stage 2 (implement) — `pending` |
-| Impl issue exists, no code changes | Stage 2 — `in progress` |
+| No design Issue exists | Stage 1 (design) — `pending` |
+| Design Issue is `open` | Stage 1 — `awaiting review` |
+| Design Issue has comments newer than last revision log | Stage 1 — `changes requested` (next: revise) |
+| Design Issue closed with `state_reason=completed` | Stage 1 approved -> Stage 2 (implement) `pending` |
+| Design Issue closed with `state_reason=not_planned` | Design rejected -> escalate |
+| Impl issue exists (assigned to @copilot), no code changes | Stage 2 — `in progress` |
 | Code changes exist, no PR | Stage 3 (self-review) — `pending` |
 | Code PR exists, status open | Stage 3 — `awaiting review` |
 | Code PR has CHANGES_REQUESTED | Stage 3 — `rejected` |
