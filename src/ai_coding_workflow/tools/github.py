@@ -29,7 +29,9 @@ from ..config import Config
 
 
 def _gh(config: Config) -> Github:
-    return Github(auth=Auth.Token(config.github_token))
+    # Explicit timeout so flaky network surfaces as a fast error instead of hanging.
+    # GitHub API is generally fast; 15s is plenty for a single REST call.
+    return Github(auth=Auth.Token(config.github_token), timeout=15, retry=2)
 
 
 def _resolve_repo(config: Config, owner: str | None, repo: str | None) -> Repository:
@@ -109,13 +111,23 @@ def register(mcp: FastMCP, config: Config) -> None:
         owner: str | None = None,
         repo: str | None = None,
     ) -> dict[str, Any] | None:
-        """Find a PR by its head branch name. Returns None if no open PR exists."""
-        gh_repo = _resolve_repo(config, owner, repo)
-        full_owner = gh_repo.owner.login
-        prs = gh_repo.get_pulls(state="all", head=f"{full_owner}:{branch}")
-        for pr in prs:
-            return _summarize_pr(pr)
-        return None
+        """Find a PR by its head branch name. Returns None if no open PR exists.
+
+        Returns None on network error rather than hanging.
+        """
+        import logging
+        log = logging.getLogger("ai_coding_workflow.github")
+        try:
+            gh_repo = _resolve_repo(config, owner, repo)
+            full_owner = gh_repo.owner.login
+            prs = gh_repo.get_pulls(state="all", head=f"{full_owner}:{branch}")
+            first_page = prs.get_page(0)
+            if not first_page:
+                return None
+            return _summarize_pr(first_page[0])
+        except Exception as exc:
+            log.warning("find_pr_by_branch(%s) failed: %s. Returning None.", branch, exc)
+            return None
 
     @mcp.tool()
     def list_pr_review_comments(
@@ -362,11 +374,27 @@ def register(mcp: FastMCP, config: Config) -> None:
         Returns the matching Issue's basic info, or None if not found.
         Used at the top of every Stage 1 invocation to detect whether
         a design issue already exists (and what state it's in).
+
+        Implementation note: uses page-bounded iteration with 15s timeout
+        on the underlying client. On network error or timeout, returns
+        None and logs the error rather than hanging.
         """
-        gh_repo = _resolve_repo(config, owner, repo)
-        jira_label = f"jira:{jira_key.lower()}"
-        # PyGithub's get_issues with labels filter
-        for issue in gh_repo.get_issues(state="all", labels=[jira_label, "stage:design"]):
+        import logging
+        log = logging.getLogger("ai_coding_workflow.github")
+
+        try:
+            gh_repo = _resolve_repo(config, owner, repo)
+            jira_label = f"jira:{jira_key.lower()}"
+            # Fetch only the first page (max 30 issues) to avoid full pagination.
+            # Two labels means very few results expected (0 or 1).
+            paginated = gh_repo.get_issues(
+                state="all",
+                labels=[jira_label, "stage:design"],
+            )
+            first_page = paginated.get_page(0)
+            if not first_page:
+                return None
+            issue = first_page[0]
             return {
                 "number": issue.number,
                 "url": issue.html_url,
@@ -374,7 +402,14 @@ def register(mcp: FastMCP, config: Config) -> None:
                 "state_reason": issue.state_reason,
                 "title": issue.title,
             }
-        return None
+        except Exception as exc:
+            log.warning(
+                "find_design_issue_for_jira(%s) failed: %s. "
+                "Returning None — caller should treat as 'no existing issue found'.",
+                jira_key,
+                exc,
+            )
+            return None
 
     # ----- Stage 2+: Implementation issue (Copilot Coding Agent trigger) ---
 
