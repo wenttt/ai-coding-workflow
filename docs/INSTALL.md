@@ -34,6 +34,21 @@ This server speaks MCP (Model Context Protocol). Any MCP-compatible client can u
 
 ### VS Code Copilot
 
+#### Step 1: Drop the auto-instructions into your sandbox/team repo
+
+Copy `templates/.github/copilot-instructions.md` from this project to **your team repo's** `.github/copilot-instructions.md`:
+
+```bash
+# Replace <your-target-repo> with your team's repo path
+cp /path/to/ai-coding-workflow/templates/.github/copilot-instructions.md /path/to/<your-target-repo>/.github/copilot-instructions.md
+```
+
+This file teaches Copilot the pipeline workflow. After this, **the user can just say "start working on KAN-4"** and Copilot follows the orchestration without needing a multi-step prompt.
+
+(You can commit this file to your team repo — it has no secrets, just instructions.)
+
+#### Step 2: Configure the MCP server
+
 1. Open VS Code settings (JSON).
 2. Add MCP server config:
 
@@ -56,13 +71,28 @@ This server speaks MCP (Model Context Protocol). Any MCP-compatible client can u
 ```
 
 3. Reload VS Code.
-4. Open Copilot Chat. Type:
+4. Open Copilot Chat in **Agent mode** (top selector). Three ways to start the pipeline:
 
+**Way A — natural language (recommended once Step 1 is done):**
 ```
-@ai-coding-workflow Start working on JIRA-123
+Start working on JIRA-123
+```
+Copilot reads `.github/copilot-instructions.md`, recognizes the Jira key, and follows the pipeline orchestration automatically.
+
+**Way B — slash command:**
+```
+/ai-coding-workflow:pipeline jira_key=JIRA-123
+```
+Auto-detects current stage and runs the right step.
+
+**Way C — explicit stage:**
+```
+/ai-coding-workflow:design_for jira_key=JIRA-123
+/ai-coding-workflow:implement_for jira_key=JIRA-123
+/ai-coding-workflow:my_tickets
 ```
 
-Copilot will discover the tools and begin the pipeline.
+All three converge on the same orchestration. Way A is the most natural; Way B/C are useful for explicit control.
 
 ### Claude Code
 

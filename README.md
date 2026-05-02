@@ -57,12 +57,19 @@ pip install -e .
 cp .env.example .env
 # edit .env
 
-# 3. Configure your IDE to use this MCP server
-# (see docs/INSTALL.md)
+# 3. Drop the Copilot instructions into your team's repo (so Copilot
+#    learns the pipeline automatically — no multi-step prompts needed):
+cp templates/.github/copilot-instructions.md <your-team-repo>/.github/copilot-instructions.md
 
-# 4. In your IDE Agent, say:
-# "Start working on JIRA-123"
+# 4. Configure your IDE to use this MCP server (see docs/INSTALL.md)
+
+# 5. In your IDE Agent (Agent mode), say one of:
+#    "Start working on JIRA-123"               <- natural language
+#    /ai-coding-workflow:pipeline jira_key=JIRA-123  <- slash command
+#    /ai-coding-workflow:my_tickets             <- list my assigned tickets
 ```
+
+**Once Step 3 is done**, the user just says one sentence ("start working on JIRA-123") and Copilot drives the entire pipeline. No multi-step prompts.
 
 ## Project structure
 
