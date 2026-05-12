@@ -18,11 +18,31 @@ from ..config import Config
 
 
 def _client(config: Config) -> Jira:
+    """Build a Jira API client.
+
+    Two modes:
+
+    - Cloud (default, JIRA_CLOUD=true): atlassian.net hosting. Auth is
+      `username=email + password=API_token` (the API token from
+      id.atlassian.com).
+
+    - Server / Data Center (JIRA_CLOUD=false): self-hosted enterprise Jira.
+      Auth is a Personal Access Token (PAT) via Bearer header. The
+      JIRA_API_TOKEN env var holds the PAT; JIRA_EMAIL is unused but kept
+      for diagnostic display.
+    """
+    if config.jira_cloud:
+        return Jira(
+            url=config.jira_base_url,
+            username=config.jira_email,
+            password=config.jira_api_token,
+            cloud=True,
+        )
+    # Self-hosted Jira Server / Data Center — Bearer token auth
     return Jira(
         url=config.jira_base_url,
-        username=config.jira_email,
-        password=config.jira_api_token,
-        cloud=True,  # most common; atlassian-python-api auto-detects in practice
+        token=config.jira_api_token,
+        cloud=False,
     )
 
 

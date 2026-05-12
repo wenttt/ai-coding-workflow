@@ -31,7 +31,18 @@ from ..config import Config
 def _gh(config: Config) -> Github:
     # Explicit timeout so flaky network surfaces as a fast error instead of hanging.
     # GitHub API is generally fast; 15s is plenty for a single REST call.
-    return Github(auth=Auth.Token(config.github_token), timeout=15, retry=2)
+    #
+    # base_url defaults to api.github.com for public GitHub. For GHES (GitHub
+    # Enterprise Server), set GITHUB_BASE_URL env var to something like
+    # https://alm-github.system.region.mycompany/api/v3
+    kwargs: dict[str, Any] = {
+        "auth": Auth.Token(config.github_token),
+        "timeout": 15,
+        "retry": 2,
+    }
+    if config.github_base_url:
+        kwargs["base_url"] = config.github_base_url
+    return Github(**kwargs)
 
 
 def _resolve_repo(config: Config, owner: str | None, repo: str | None) -> Repository:

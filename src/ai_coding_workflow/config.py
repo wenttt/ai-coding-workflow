@@ -17,11 +17,16 @@ class Config:
     jira_base_url: str
     jira_email: str
     jira_api_token: str
+    # True: Atlassian Cloud (email + API token). False: Server/DC (PAT only).
+    jira_cloud: bool
 
     # GitHub
     github_token: str
     github_default_owner: str | None
     github_default_repo: str | None
+    # None: public github.com. Set for GitHub Enterprise Server (GHES),
+    # e.g. "https://alm-github.system.region.mycompany/api/v3"
+    github_base_url: str | None
 
     # Workspace
     workspace_path: Path
@@ -86,14 +91,19 @@ def load_config() -> Config:
 
     skill_mapping = _optional("SKILL_MAPPING_PATH")
     project_mapping = _optional("PROJECT_MAPPING_PATH")
+    jira_cloud_raw = _optional("JIRA_CLOUD", "true").lower()
+    jira_cloud = jira_cloud_raw not in {"false", "0", "no", "off"}
+    github_base_url = _optional("GITHUB_BASE_URL") or None
 
     return Config(
         jira_base_url=_required("JIRA_BASE_URL").rstrip("/"),
         jira_email=_required("JIRA_EMAIL"),
         jira_api_token=_required("JIRA_API_TOKEN"),
+        jira_cloud=jira_cloud,
         github_token=_required("GITHUB_TOKEN"),
         github_default_owner=_optional("GITHUB_DEFAULT_OWNER") or None,
         github_default_repo=_optional("GITHUB_DEFAULT_REPO") or None,
+        github_base_url=github_base_url,
         workspace_path=workspace,
         operation_log_dir=_optional("OPERATION_LOG_DIR", "docs/operations"),
         design_doc_dir=_optional("DESIGN_DOC_DIR", "docs/designs"),

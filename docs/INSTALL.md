@@ -132,6 +132,44 @@ Cursor supports MCP servers via `~/.cursor/mcp.json`:
 }
 ```
 
+## Enterprise (self-hosted) GitHub + Jira
+
+If your company uses GitHub Enterprise Server (GHES) or self-hosted Jira (Server / Data Center) instead of the public SaaS, set these additional env vars:
+
+### GHES (`alm-github.system.region.your-company.com` style)
+
+```
+GITHUB_BASE_URL=https://alm-github.system.region.your-company.com/api/v3
+GITHUB_TOKEN=<PAT issued on your GHES instance>
+GITHUB_DEFAULT_OWNER=<your-org>
+GITHUB_DEFAULT_REPO=<your-repo>
+```
+
+The PAT must be created on your GHES instance (not github.com). If your org uses SAML SSO, after generating the token click "Authorize for SAML SSO" so it works against your org's repos.
+
+Required scopes are the same as public GitHub: `repo`, `workflow`, `issues`. For fine-grained tokens: Issues / Pull requests / Contents / Workflows = Read+Write.
+
+### Self-hosted Jira (`alm-jira.system.region.your-company.com` style)
+
+```
+JIRA_BASE_URL=https://alm-jira.system.region.your-company.com
+JIRA_CLOUD=false
+JIRA_EMAIL=<unused; can be your email for diagnostics>
+JIRA_API_TOKEN=<Personal Access Token from Jira profile>
+```
+
+Self-hosted Jira uses **PAT (Personal Access Token) via Bearer header**, not the email+token combo Cloud uses. Generate the PAT under your Jira profile -> Personal Access Tokens (the exact menu path varies by Jira version).
+
+If your company's Jira is on an older release (no PAT support), you may need username + password auth instead. That's not currently supported by this server — file an issue or contact your Jira admin about enabling PAT.
+
+### Verify the connection
+
+```bash
+ai-coding-workflow --version
+```
+
+Then run the smoke test from the README. It calls both Jira and GitHub once and tells you which (if either) failed.
+
 ## Required scopes / permissions
 
 ### Jira API token
